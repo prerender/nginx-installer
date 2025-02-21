@@ -1,0 +1,11 @@
+{
+    "configurations": [
+        {
+            "type": "debugpy",
+            "request": "launch",
+            "name": "Launch Program",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": ["-f", "./nginx.conf"]
+        }
+    ]
+}

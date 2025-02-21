@@ -1,0 +1,17 @@
+{
+    "configurations": [
+      {
+        "type": "debugpy",
+        "request": "launch",
+        "name": "Launch Program",
+        "program": "${workspaceFolder}/src/main.py"
+      }
+    ],
+    "inputs": [
+      {
+        "type": "promptString",
+        "id": "nginxConfigPath",
+        "description": "Please specify the path to the nginx configuration file"
+      }
+    ]
+  }

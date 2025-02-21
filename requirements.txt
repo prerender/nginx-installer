@@ -1,0 +1,3 @@
+crossplane
+pyyaml
+argparse
