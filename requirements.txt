@@ -1,4 +1,2 @@
-crossplane
-pyyaml
-argparse
-pyinstaller
+crossplane==0.5.8
+pyinstaller==6.12.0

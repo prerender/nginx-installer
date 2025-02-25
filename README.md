@@ -1,5 +1,9 @@
 # Portable Nginx CLI
 
+## Version
+
+Python 3.13.0
+
 ## Installation
 
 1. Clone the repository:
@@ -10,13 +14,13 @@
 
 2. Activate the virtual environment:
    ```
-   python -m venv venv
+   python3 -m venv venv
    source venv/bin/activate
    ```
 
 3. Install the required dependencies:
    ```
-   pip install -r requirements.txt
+   pip3 install -r requirements.txt
    ```
 
 ## Usage
