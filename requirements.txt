@@ -1,3 +1,4 @@
 crossplane
 pyyaml
 argparse
+pyinstaller

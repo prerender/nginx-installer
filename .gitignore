@@ -1,3 +1,6 @@
 /myenv
 **/__pycache__/
 /nginx.conf
+/build
+/dist
+/main.spec
