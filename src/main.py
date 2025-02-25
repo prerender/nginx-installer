@@ -34,6 +34,17 @@ def main():
             print(f"The file at {config_path} does not exist. Please try again.")
             config_path = None
 
+    # Make a backup of the nginx configuration file
+    backup_path = config_path + '.backup'
+    try:
+        with open(config_path, 'r') as original_file:
+            with open(backup_path, 'w') as backup_file:
+                backup_file.write(original_file.read())
+        print(f"Backup of the nginx configuration file created at {backup_path}")
+    except Exception as e:
+        print(f"Error creating backup of nginx configuration: {e}")
+        sys.exit(1)
+
     # Load and parse the nginx configuration
     try:
         config = load_nginx_config(config_path)
