@@ -148,8 +148,6 @@ def rewrite_root_location(config):
     # prepend the if block directive to the location block
     location_root_block.setdefault("block", []).insert(0, if_block)
 
-
-
 def add_location_prerenderio(config: list) -> None:
     """
     Inserts a new location block for "/prerenderio" into the first server block.
@@ -178,7 +176,7 @@ def add_location_prerenderio(config: list) -> None:
                 ]
             },
             {"directive": "proxy_set_header", "args": ["X-Prerender-Token", "YOUR_TOKEN"]},
-            {"directive": "proxy_set_header", "args": ["X-Prerender-Int-Type", "Nginx_Rev_Proxy"]},
+            {"directive": "proxy_set_header", "args": ["X-Prerender-Int-Type", "nginx_auto_installer"]},
             {"directive": "proxy_hide_header", "args": ["Cache-Control"]},
             {"directive": "add_header", "args": ["Cache-Control", "private,max-age=600,must-revalidate"]},
             {"directive": "resolver", "args": ["8.8.8.8", "8.8.4.4"]},
@@ -192,39 +190,4 @@ def add_location_prerenderio(config: list) -> None:
         server_block.setdefault("block", []).insert(location_index + 1, location_prerenderio)
     else:
         server_block.setdefault("block", []).append(location_prerenderio)
-
-def is_php_application(config: list) -> bool:
-    """
-    Detects if the given Nginx configuration is for a PHP application.
-    
-    The function checks the server block for:
-      - a location directive that handles PHP files (e.g. with args matching a PHP regex), or
-      - a rewrite directive targeting "/index.php" within any location block.
-    
-    :param config: Parsed nginx configuration (as a list of dictionaries).
-    :return: True if indicators of a PHP application are found; otherwise, False.
-    """
-    try:
-        server_block = get_server_block(config)
-    except Exception:
-        return False
-
-    # Iterate over directives in the server block
-    for directive in server_block.get("block", []):
-        # Check for a location block handling PHP requests by regex.
-        if directive.get("directive") == "location":
-            args = directive.get("args", [])
-            if args:
-                # Check if the location uses a regex for PHP files.
-                if "php" in args[0] and args[0].find("\\.php") != -1:
-                    return True
-            # Additionally, search within this location block for rewrite rules.
-            for nested in directive.get("block", []):
-                if nested.get("directive") == "rewrite":
-                    rewrite_args = nested.get("args", [])
-                    if rewrite_args and any("index.php" in a for a in rewrite_args):
-                        return True
-
-    # If nothing indicative was found, assume config is not for a PHP application.
-    return False
 

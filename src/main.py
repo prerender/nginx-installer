@@ -45,7 +45,6 @@ def main():
     # modify = input("Do you want to modify the nginx configuration? (y/n): ")
     if True or modify.lower() == 'y':
         add_map_section(config)
-        #add_rewrite_to_root_server_location(config)
         rewrite_root_location(config)
         add_location_prerenderio(config)
         modified_config = save_nginx_config(config, './nginx.conf')
