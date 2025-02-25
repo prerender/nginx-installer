@@ -124,23 +124,6 @@ def add_map_section(config: list) -> None:
     for offset, map_directive in enumerate(maps_to_insert):
         http_section['block'].insert(server_index + offset, map_directive)
 
-
-def add_rewrite_to_root_server_location(config: list) -> None:
-    server_block = get_server_block(config)
-    location_root_block = get_location_block(server_block, "/")
-
-    # Define the if block directive
-    if_block = {
-        "directive": "if",
-        "args": ["($prerender = 1)"],
-        "block": [
-            {"directive": "rewrite", "args": ["(.*)", "/prerenderio", "last"]}
-        ]
-    }
-
-    # Ensure the location block has a block for nested directives
-    location_root_block.setdefault("block", []).append(if_block)
-
 """
 location / {
     if ($prerender = 1) {
@@ -149,7 +132,7 @@ location / {
     ...
 }
 """
-def php_rewire_root_location(config):
+def rewrite_root_location(config):
     server_block = get_server_block(config)
     location_root_block = get_location_block(server_block, "/")
 
@@ -160,12 +143,6 @@ def php_rewire_root_location(config):
         "block": [
             {"directive": "rewrite", "args": ["(.*)", "/prerenderio", "last"]}
         ]
-    }
-
-    # Define the rewrite block directive
-    rewrite_block = {
-        "directive": "rewrite",
-        "args": ["(.*)", "/index.php$1", "last"]
     }
 
     # prepend the if block directive to the location block
@@ -215,3 +192,39 @@ def add_location_prerenderio(config: list) -> None:
         server_block.setdefault("block", []).insert(location_index + 1, location_prerenderio)
     else:
         server_block.setdefault("block", []).append(location_prerenderio)
+
+def is_php_application(config: list) -> bool:
+    """
+    Detects if the given Nginx configuration is for a PHP application.
+    
+    The function checks the server block for:
+      - a location directive that handles PHP files (e.g. with args matching a PHP regex), or
+      - a rewrite directive targeting "/index.php" within any location block.
+    
+    :param config: Parsed nginx configuration (as a list of dictionaries).
+    :return: True if indicators of a PHP application are found; otherwise, False.
+    """
+    try:
+        server_block = get_server_block(config)
+    except Exception:
+        return False
+
+    # Iterate over directives in the server block
+    for directive in server_block.get("block", []):
+        # Check for a location block handling PHP requests by regex.
+        if directive.get("directive") == "location":
+            args = directive.get("args", [])
+            if args:
+                # Check if the location uses a regex for PHP files.
+                if "php" in args[0] and args[0].find("\\.php") != -1:
+                    return True
+            # Additionally, search within this location block for rewrite rules.
+            for nested in directive.get("block", []):
+                if nested.get("directive") == "rewrite":
+                    rewrite_args = nested.get("args", [])
+                    if rewrite_args and any("index.php" in a for a in rewrite_args):
+                        return True
+
+    # If nothing indicative was found, assume config is not for a PHP application.
+    return False
+

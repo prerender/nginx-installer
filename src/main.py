@@ -2,7 +2,7 @@ import os
 import sys
 import argparse
 from crossplane_adapter import load_nginx_config, save_nginx_config
-from prerender import add_map_section, add_location_prerenderio, add_rewrite_to_root_server_location, php_rewire_root_location
+from prerender import add_map_section, add_location_prerenderio, rewrite_root_location
 
 DEFAULT_NGINX_CONFIG_PATH = '/etc/nginx/nginx.conf'
 
@@ -24,12 +24,15 @@ def main():
             use_default = input(f"Default nginx configuration found at {DEFAULT_NGINX_CONFIG_PATH}. Do you want to use it? (y/n): ")
             if use_default.lower() == 'y':
                 config_path = DEFAULT_NGINX_CONFIG_PATH
-    
-    if not config_path:
-        print("No nginx configuration file found.")
-        print("Run installer with -f argument and specify path to your nginx config. \n Example: \n ./nginx-installer -f /etc/nginx/my-site.conf")
-        exit()
-            
+
+    while not config_path:
+        config_path = input("Please enter the path to the nginx configuration file or type 'exit' to quit: ")
+        if config_path.lower() == 'exit':
+            print("Exiting...")
+            sys.exit(0)
+        if not os.path.exists(config_path):
+            print(f"The file at {config_path} does not exist. Please try again.")
+            config_path = None
 
     # Load and parse the nginx configuration
     try:
@@ -43,7 +46,7 @@ def main():
     if True or modify.lower() == 'y':
         add_map_section(config)
         #add_rewrite_to_root_server_location(config)
-        php_rewire_root_location(config)
+        rewrite_root_location(config)
         add_location_prerenderio(config)
         modified_config = save_nginx_config(config, './nginx.conf')
         print("Modified (Parsed) Configuration:")
