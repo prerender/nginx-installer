@@ -9,12 +9,15 @@ DEFAULT_NGINX_CONFIG_PATH = '/etc/nginx/nginx.conf'
 def parse_args():
     parser = argparse.ArgumentParser(description="Portable nginx configuration CLI tool")
     parser.add_argument('-f', '--file', help='Path to the nginx configuration file', default=None)
+    parser.add_argument('-o', '--output', help='Path to save the modified nginx configuration file', default=None)
+    parser.add_argument('-m', '--modify', help='Modify the nginx configuration', default=False)
     return parser.parse_args()
 
 def main():
     args = parse_args()
     config_path = None
     config = None
+    output_path = None
     
     if args.file:
         config_path = args.file
@@ -45,22 +48,32 @@ def main():
         print(f"Error creating backup of nginx configuration: {e}")
         sys.exit(1)
 
+    if args.output:
+        output_path = args.output
+    else:
+        output_path = config_path
+
     # Load and parse the nginx configuration
     try:
         config = load_nginx_config(config_path)
-        print("Nginx Configuration Loaded Successfully:") 
+        print("Nginx Configuration Loaded Successfully.") 
     except Exception as e:
         print(f"Error loading nginx configuration: {e}")
         sys.exit(1)
 
-    # modify = input("Do you want to modify the nginx configuration? (y/n): ")
-    if True or modify.lower() == 'y':
+    shall_modify = args.modify
+
+    if not shall_modify:
+        input_modify = input("Do you want to modify the nginx configuration? (y/n): ")
+        if input_modify.lower() == 'y':
+            shall_modify = True
+    
+    if shall_modify:
         add_map_section(config)
         rewrite_root_location(config)
         add_location_prerenderio(config)
-        modified_config = save_nginx_config(config, './nginx.conf')
-        print("Modified (Parsed) Configuration:")
-        print(modified_config)
+        save_nginx_config(config, output_path)
+        print(f"Modified nginx configuration saved to {output_path}")
 
 if __name__ == "__main__":
     main()
