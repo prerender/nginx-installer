@@ -7,6 +7,23 @@ def get_http_section(config: list) -> dict:
             return section
     raise Exception("No http section found in the configuration")
 
+def get_all_server_blocks_with_names(config: list) -> list:
+    """
+    Returns a list of server blocks with their server names.
+    If a server block does not have a server name, it will be None.
+    """
+    http_section = get_http_section(config)
+    server_blocks_with_names = []
+    for directive in http_section.get("block", []):
+        if directive.get("directive") == "server":
+            server_name = None
+            for server_directive in directive.get("block", []):
+                if server_directive.get("directive") == "server_name":
+                    server_name = server_directive.get("args", [None])[0]
+                    break
+            server_blocks_with_names.append((directive, server_name))
+    return server_blocks_with_names
+
 
 def get_server_block(config: list) -> dict:
     """
@@ -132,8 +149,10 @@ location / {
     ...
 }
 """
-def rewrite_root_location(config):
-    server_block = get_server_block(config)
+def rewrite_root_location(server_block: dict):
+    """
+    Modifies the root location block in the given server block.
+    """
     location_root_block = get_location_block(server_block, "/")
 
     # Define the if block directive
@@ -148,12 +167,10 @@ def rewrite_root_location(config):
     # prepend the if block directive to the location block
     location_root_block.setdefault("block", []).insert(0, if_block)
 
-def add_location_prerenderio(config: list) -> None:
+def add_location_prerenderio(server_block: dict) -> None:
     """
-    Inserts a new location block for "/prerenderio" into the first server block.
+    Inserts a new location block for "/prerenderio" into the given server block.
     """
-    server_block = get_server_block(config)
-
     # Locate the index of the location "/" block within the server block.
     location_index = None
     for idx, directive in enumerate(server_block.get("block", [])):

@@ -4,4 +4,4 @@
 /build
 /dist
 /main.spec
-**/*.conf.backup
+**/*.conf.backup*

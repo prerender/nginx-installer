@@ -2,7 +2,7 @@ import os
 import sys
 import argparse
 from crossplane_adapter import load_nginx_config, save_nginx_config
-from prerender import add_map_section, add_location_prerenderio, rewrite_root_location
+from prerender import add_map_section, add_location_prerenderio, rewrite_root_location, get_all_server_blocks_with_names
 
 DEFAULT_NGINX_CONFIG_PATH = '/etc/nginx/nginx.conf'
 
@@ -38,7 +38,12 @@ def main():
             config_path = None
 
     # Make a backup of the nginx configuration file
-    backup_path = config_path + '.backup'
+    backup_index = 1
+    backup_path = f"{config_path}.backup-{backup_index}"
+    while os.path.exists(backup_path):
+        backup_index += 1
+        backup_path = f"{config_path}.backup-{backup_index}"
+    
     try:
         with open(config_path, 'r') as original_file:
             with open(backup_path, 'w') as backup_file:
@@ -61,19 +66,65 @@ def main():
         print(f"Error loading nginx configuration: {e}")
         sys.exit(1)
 
-    shall_modify = args.modify
+    is_modified = False
 
-    if not shall_modify:
-        input_modify = input("Do you want to modify the nginx configuration? (y/n): ")
-        if input_modify.lower() == 'y':
-            shall_modify = True
-    
-    if shall_modify:
-        add_map_section(config)
-        rewrite_root_location(config)
-        add_location_prerenderio(config)
-        save_nginx_config(config, output_path)
-        print(f"Modified nginx configuration saved to {output_path}")
+    try:
+        # Get all server blocks with their server names
+        selected_server_block = None
+        server_blocks_with_names = get_all_server_blocks_with_names(config)
+
+        print("Following server blocks were found in the nginx configuration:")
+        for i, (server_block, server_name) in enumerate(server_blocks_with_names):
+            if server_name:
+                print(f"{i + 1}. {server_name}")
+            else:
+                print(f"{i + 1}. default (no server_name)")
+
+        while not selected_server_block:
+            try:
+                selected_server_block_index = int(input("Which server do you want to integrate? (1,2,3...): "))
+                selected_server_block = server_blocks_with_names[selected_server_block_index - 1]
+            except Exception as e:
+                print(f"Invalid input: {e}")
+                selected_server_block = None
+
+        print(f"Selected server block: {selected_server_block[1]}")
+
+        shall_modify = args.modify
+
+        if not shall_modify:
+            input_modify = input("Do you want to modify the nginx configuration? (y/n): ")
+            if input_modify.lower() == 'y':
+                shall_modify = True
+        
+        if shall_modify:
+            add_map_section(config)
+            rewrite_root_location(selected_server_block[0])
+            add_location_prerenderio(selected_server_block[0])
+            save_nginx_config(config, output_path)
+            is_modified = True
+            print(f"Modified nginx configuration saved to {output_path}")
+
+    except Exception as e:
+        print(f"Error : {e}")
+
+        if is_modified:
+            print(f"Config at {output_path} was modified and may be in an inconsistent state.")
+        
+            # Restore the backup file
+            restore_backup = input("Do you want to restore the original nginx configuration file from backup? (y/n): ")
+            if restore_backup.lower() == 'y':
+                try:
+                    os.remove(config_path)
+                    os.rename(backup_path, config_path)
+                    print(f"Restored the original nginx configuration file from {backup_path}")
+                except Exception as e:
+                    print(f"Error restoring the original nginx configuration file: {e}")
+    if not is_modified:
+        print("No modifications were made to the nginx configuration file.")
+    else:
+        print("Please restart the nginx service to apply the changes.")
+
 
 if __name__ == "__main__":
     main()
