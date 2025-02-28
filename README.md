@@ -30,6 +30,11 @@ To run the application, execute the following command in your terminal:
 python src/main.py
 ```
 
+For help, execute the following command in your terminal:
+```
+python3 src/main.py -h
+```
+
 ## Testing with Docker
 
 To test the application using Docker, execute the following commands in your terminal:
