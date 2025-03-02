@@ -13,7 +13,7 @@ IMAGE_NAME="test-nginx-image"
 
 # Modify config 
 echo "Modifying nginx configuration..."
-python3 src/main.py -f "$CUSTOM_NGINX_CONF" -m True -o "$(pwd)/nginx.conf"
+python3 src/main.py -f "$CUSTOM_NGINX_CONF" -m True -o "$(pwd)/nginx.conf" -t INVALID_TOKEN
 
 # Build the docker image from the specified directory
 docker build -t "$IMAGE_NAME" "$DOCKER_DIR"

@@ -167,7 +167,10 @@ def rewrite_root_location(server_block: dict):
     # prepend the if block directive to the location block
     location_root_block.setdefault("block", []).insert(0, if_block)
 
-def add_location_prerenderio(server_block: dict) -> None:
+def add_location_prerenderio(server_block: dict, prerender_token: str) -> None:
+    if not prerender_token:
+        raise Exception("Prerender token is required to proceed.")
+
     """
     Inserts a new location block for "/prerenderio" into the given server block.
     """
@@ -192,7 +195,7 @@ def add_location_prerenderio(server_block: dict) -> None:
                     {"directive": "return", "args": ["404"]}
                 ]
             },
-            {"directive": "proxy_set_header", "args": ["X-Prerender-Token", "YOUR_TOKEN"]},
+            {"directive": "proxy_set_header", "args": ["X-Prerender-Token", prerender_token]},
             {"directive": "proxy_set_header", "args": ["X-Prerender-Int-Type", "nginx_auto_installer"]},
             {"directive": "proxy_hide_header", "args": ["Cache-Control"]},
             {"directive": "add_header", "args": ["Cache-Control", "private,max-age=600,must-revalidate"]},

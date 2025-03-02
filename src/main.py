@@ -11,6 +11,7 @@ def parse_args():
     parser.add_argument('-f', '--file', help='Path to the nginx configuration file', default=None)
     parser.add_argument('-o', '--output', help='Path to save the modified nginx configuration file', default=None)
     parser.add_argument('-m', '--modify', help='Modify the nginx configuration', default=False)
+    parser.add_argument('-t', '--token', help='Prerender token', default=None)
     return parser.parse_args()
 
 def main():
@@ -73,12 +74,15 @@ def main():
         selected_server_block = None
         server_blocks_with_names = get_all_server_blocks_with_names(config)
 
+        def get_server_name(server_block):
+            if server_block[1]:
+                return server_block[1]
+            
+            return "default (no server_name)"
+
         print("Following server configurations were found:")
-        for i, (server_block, server_name) in enumerate(server_blocks_with_names):
-            if server_name:
-                print(f"  {i + 1}. {server_name}")
-            else:
-                print(f"  {i + 1}. default (no server_name)")
+        for i, (server_block) in enumerate(server_blocks_with_names):
+            print(f"  {i + 1}. {get_server_name(server_block)}")
 
         if not server_blocks_with_names:
             raise Exception("No server blocks found in the nginx configuration")
@@ -94,7 +98,15 @@ def main():
                     print(f"Invalid input: {e}")
                     selected_server_block = None
 
-        print(f"Selected server configuration: {selected_server_block[1]}")
+        print(f"Selected server configuration: {get_server_name(selected_server_block)}")
+
+        prerender_token = args.token
+
+        if not prerender_token:
+            prerender_token = input("Please enter your Prerender token: ")
+
+        if not prerender_token:
+            raise Exception("Prerender token is required to proceed.")
 
         shall_modify = args.modify
 
@@ -102,11 +114,14 @@ def main():
             input_modify = input("Do you want to modify the nginx configuration? (y/n): ")
             if input_modify.lower() == 'y':
                 shall_modify = True
+
+        if not os.path.exists(backup_path) or os.path.getsize(backup_path) == 0:
+            raise Exception("Unsafe to proceed : backup file is not found or corrupted")
         
         if shall_modify:
             add_map_section(config)
             rewrite_root_location(selected_server_block[0])
-            add_location_prerenderio(selected_server_block[0])
+            add_location_prerenderio(selected_server_block[0], prerender_token)
             save_nginx_config(config, output_path)
             is_modified = True
             print(f"Modified nginx configuration saved to {output_path}")
