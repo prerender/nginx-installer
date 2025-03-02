@@ -40,7 +40,7 @@ python3 src/main.py -h
 To test the application using Docker, execute the following commands in your terminal:
 
 ```
-./run-test.sh images/reverse-proxy-node images/reverse-proxy-node/nginx.conf
+./run-docker-test.sh images/reverse-proxy-node images/reverse-proxy-node/nginx.conf
 ```
 
 ## PyInstaller

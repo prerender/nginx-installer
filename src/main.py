@@ -73,22 +73,28 @@ def main():
         selected_server_block = None
         server_blocks_with_names = get_all_server_blocks_with_names(config)
 
-        print("Following server blocks were found in the nginx configuration:")
+        print("Following server configurations were found:")
         for i, (server_block, server_name) in enumerate(server_blocks_with_names):
             if server_name:
-                print(f"{i + 1}. {server_name}")
+                print(f"  {i + 1}. {server_name}")
             else:
-                print(f"{i + 1}. default (no server_name)")
+                print(f"  {i + 1}. default (no server_name)")
 
-        while not selected_server_block:
-            try:
-                selected_server_block_index = int(input("Which server do you want to integrate? (1,2,3...): "))
-                selected_server_block = server_blocks_with_names[selected_server_block_index - 1]
-            except Exception as e:
-                print(f"Invalid input: {e}")
-                selected_server_block = None
+        if not server_blocks_with_names:
+            raise Exception("No server blocks found in the nginx configuration")
+        
+        if len(server_blocks_with_names) == 1:
+            selected_server_block = server_blocks_with_names[0]
+        else:
+            while not selected_server_block:
+                try:
+                    selected_server_block_index = int(input("Which server do you want to integrate? (1,2,3...): "))
+                    selected_server_block = server_blocks_with_names[selected_server_block_index - 1]
+                except Exception as e:
+                    print(f"Invalid input: {e}")
+                    selected_server_block = None
 
-        print(f"Selected server block: {selected_server_block[1]}")
+        print(f"Selected server configuration: {selected_server_block[1]}")
 
         shall_modify = args.modify
 
