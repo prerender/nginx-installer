@@ -49,3 +49,18 @@ To create a standalone executable, execute the following command in your termina
 ```
 pyinstaller src/main.py --onefile
 ```
+
+To create executable with Docker, run :
+
+```
+make build-linux
+```
+
+the executable will be in /bin directory.
+
+## Clean up
+
+To clean up the project directory and temp files, execute the following command in your terminal:
+```
+make clean
+```

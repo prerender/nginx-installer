@@ -24,6 +24,6 @@ build-linux:
 
 # Clean up build artifacts and temporary files
 clean:
-	rm -rf build dist **/*.spec *.conf.backup-*	
+	rm -rf build dist **/*.spec **/*.conf.backup-*	
 
 .PHONY: all build clean
