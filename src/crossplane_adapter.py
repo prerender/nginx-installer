@@ -16,6 +16,9 @@ def save_nginx_config(config, file_path):
     if not config_str:
         raise Exception("Failed to build configuration with crossplane")
 
-    with open(file_path, 'w') as f:
-        f.write(config_str)
+    try:
+        with open(file_path, 'w') as f:
+            f.write(config_str)
+    except IOError as e:
+        raise Exception(f"Failed to save configuration to {file_path}: {e}")
     

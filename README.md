@@ -1,5 +1,9 @@
 # Portable Nginx CLI
 
+## Version
+
+Python 3.13.0
+
 ## Installation
 
 1. Clone the repository:
@@ -10,13 +14,13 @@
 
 2. Activate the virtual environment:
    ```
-   python -m venv venv
+   python3 -m venv venv
    source venv/bin/activate
    ```
 
 3. Install the required dependencies:
    ```
-   pip install -r requirements.txt
+   pip3 install -r requirements.txt
    ```
 
 ## Usage
@@ -26,11 +30,9 @@ To run the application, execute the following command in your terminal:
 python src/main.py
 ```
 
-## PyInstaller
-
-To create a standalone executable, execute the following command in your terminal:
+For help, execute the following command in your terminal:
 ```
-pyinstaller src/main.py --onefile
+python3 src/main.py -h
 ```
 
 ## Testing with Docker
@@ -38,5 +40,12 @@ pyinstaller src/main.py --onefile
 To test the application using Docker, execute the following commands in your terminal:
 
 ```
-./run-test.sh images/reverse-proxy-node images/reverse-proxy-node/nginx.conf
+./run-docker-test.sh images/reverse-proxy-node images/reverse-proxy-node/nginx.conf
+```
+
+## PyInstaller
+
+To create a standalone executable, execute the following command in your terminal:
+```
+pyinstaller src/main.py --onefile
 ```
