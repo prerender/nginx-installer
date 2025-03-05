@@ -48,7 +48,7 @@ def get_location_block(server_block: dict, location: str) -> dict:
 
 def add_map_section(config: list) -> None:
     """
-    Adds map directives into the http section before the first server block.
+    Adds or updates map directives in the http section before the first server block.
     """
     http_section = get_http_section(config)
     # Find the index of the first server block in the http section
@@ -136,10 +136,24 @@ def add_map_section(config: list) -> None:
         ]
     }
 
-    # Insert all map directives before the server directive.
-    maps_to_insert = [map_http_user_agent, map_args, map_http_x_prerender, map_uri]
-    for offset, map_directive in enumerate(maps_to_insert):
-        http_section['block'].insert(server_index + offset, map_directive)
+    # Replace or insert map directives
+    maps_to_insert = [
+        map_http_user_agent,
+        map_args,
+        map_http_x_prerender,
+        map_uri
+    ]
+
+    for map_directive in maps_to_insert:
+        replaced = False
+        for i, directive in enumerate(http_section.get("block", [])):
+            if directive.get("directive") == "map" and directive.get("args", []) == map_directive["args"]:
+                http_section["block"][i] = map_directive
+                replaced = True
+                break
+        if not replaced:
+            http_section["block"].insert(server_index, map_directive)
+            server_index += 1
 
 """
 location / {
@@ -163,9 +177,18 @@ def rewrite_root_location(server_block: dict):
             {"directive": "rewrite", "args": ["(.*)", "/prerenderio", "last"]}
         ]
     }
-
-    # prepend the if block directive to the location block
-    location_root_block.setdefault("block", []).insert(0, if_block)
+    
+    # Check if the if block directive is already present
+    replaced = False
+    for directive in location_root_block.get("block", []):
+        if directive.get("directive") == "if" and directive.get("args", []) == ["$prerender", "=", "1"]:
+            replaced = True
+            directive["block"] = if_block["block"]
+            break
+    
+    if not replaced:
+        # prepend the if block directive to the location block
+        location_root_block.setdefault("block", []).insert(0, if_block)
 
 def add_location_prerenderio(server_block: dict, prerender_token: str) -> None:
     if not prerender_token:
@@ -182,6 +205,9 @@ def add_location_prerenderio(server_block: dict, prerender_token: str) -> None:
             if args and args[0] == "/":
                 location_index = idx
                 break
+            
+    if location_index is None:
+        raise Exception("No location block found for / in the server block")
 
     # Build the new location block for /prerenderio
     location_prerenderio = {
@@ -205,9 +231,15 @@ def add_location_prerenderio(server_block: dict, prerender_token: str) -> None:
             {"directive": "rewrite", "args": [".*", "/$scheme://$host$request_uri?", "break"]}
         ]
     }
+    
+    # Check if the location /prerenderio block is already present
+    replaced = False
+    for directive in server_block.get("block", []):
+        if directive.get("directive") == "location" and directive.get("args", []) == ["/prerenderio"]:
+            replaced = True
+            directive["block"] = location_prerenderio["block"]
+            break
 
-    if location_index is not None:
+    if not replaced:
         server_block.setdefault("block", []).insert(location_index + 1, location_prerenderio)
-    else:
-        server_block.setdefault("block", []).append(location_prerenderio)
 
