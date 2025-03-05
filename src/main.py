@@ -39,10 +39,11 @@ def main():
     else:
         site_url = site_url_data.get_data()
         
-        proceed = input(f"Do you want to integrate {args.url}? (y/n): ")
-        if proceed.lower() != 'y':
-            site_url = None 
-            site_url_data.cleanup()
+        if site_url:
+            proceed = input(f"Do you want to integrate {site_url}? (y/n): ")
+            if proceed.lower() != 'y':
+                site_url = None 
+                site_url_data.cleanup()
 
     while not site_available:
         if not site_url:
@@ -61,7 +62,7 @@ def main():
                     site_url_data.cleanup()
                     site_available = False
                 else:
-                    exit(0)
+                    sys.exit(0)
             
     site_url_data.save_data(site_url)
     
@@ -77,7 +78,6 @@ def main():
     while not config_path:
         config_path = input("Please enter the path to the nginx configuration file or type 'exit' to quit: ")
         if config_path.lower() == 'exit':
-            print("Exiting...")
             sys.exit(0)
         if not os.path.exists(config_path):
             print(f"The file at {config_path} does not exist. Please try again.")
@@ -205,7 +205,7 @@ def main():
 
     if not is_modified:
         print("No modifications were made to the nginx configuration file.")
-        exit(0)
+        sys.exit(0)
 
     # Try to restart nginx service
     try:
@@ -216,7 +216,7 @@ def main():
         print("Nginx service reloaded successfully.")
     except Exception as e:
         print("Please reload the nginx service manually and re-run the script to verify the installation.")
-        exit(0)
+        sys.exit(0)
     
     # Verify that the site is accessible and Prerender integration is installed
     try:
