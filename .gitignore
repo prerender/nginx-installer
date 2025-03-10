@@ -4,7 +4,7 @@
 /build
 /dist
 /main.spec
-**/*.conf.backup*
+**/*.conf.prerender.backup*
 /.prerender_site_url
 /.prerender_token
 /prerender.log

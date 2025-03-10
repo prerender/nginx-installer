@@ -64,7 +64,6 @@ def main():
     args = parse_args()
     setup_logging(args.verbose)
     
-    logger.info("This tool will help you integrate your site with Prerender.io by modifying your nginx configuration.")
     logger.debug(f"Version: {VERSION}")
     logger.debug(f"Arguments: {args}")
         
@@ -86,7 +85,8 @@ def main():
 
     while not site_available:
         if not site_url:
-            site_url = input("Please enter the URL of the site to integrate with Prerender.io: ")
+            logger.info("Please enter the URL of the site to integrate with Prerender.io. Example https://www.site.com: ")
+            site_url = input()
         logger.info(f"Checking if the site at {site_url} is accessible...")
         site_available = check_access(site_url)
         if not site_available:
@@ -95,12 +95,7 @@ def main():
             prerender_verified = check_integration(site_url)
             if prerender_verified:
                 logger.info(f"Prerender integration exists for {site_url}")           
-                if prompt_yes_no("Do you want to integrate another site (y/n)?"):
-                    site_url = None
-                    site_url_data.cleanup()
-                    site_available = False
-                else:
-                    sys.exit(0)
+                sys.exit(0)                    
             
     site_url_data.save_data(site_url)
     
@@ -120,12 +115,14 @@ def main():
             logger.info(f"The file at {config_path} does not exist. Please try again.")
             config_path = None
 
-    backup_path = None
+    backup_path = f"{config_path}.prerender.backup"
+    
     try:
-        backup_path = make_backup(config_path)
+        backup_path = make_backup(config_path, backup_path)
         logger.info(f"Backup of the nginx configuration file created at {backup_path}")
     except Exception as e:
         logger.info(f"Error creating backup of nginx configuration: {e}")
+        logger.info(f"Make sure you have the necessary permissions to modify files at config location.")
         sys.exit(1)
 
     if args.output:
@@ -136,7 +133,7 @@ def main():
     # Load and parse the nginx configuration
     try:
         config = load_nginx_config(config_path)
-        logger.info("Nginx Configuration Loaded Successfully.") 
+        logger.info("Nginx configuration loaded successfully.") 
     except Exception as e:
         logger.info(f"Error loading nginx configuration: {e}")
         sys.exit(1)
@@ -231,7 +228,7 @@ def main():
 
     if not is_modified:
         logger.info("No modifications were made to the nginx configuration file.")
-        sys.exit(0)
+        sys.exit(0)        
 
     # Try to restart nginx service
     logger.info("Reloading nginx service, you may be prompted to enter your sudo password...")
@@ -255,9 +252,26 @@ def main():
         logger.info("Verification failed. Possible reasons include:\n"
             "- Incorrect routing configuration.\n"
             "- Firewall rules blocking access.\n"
+            "- Invalid Prerender token.\n"
             "- Non-standard nginx configuration.\n"
             "Please check your configuration and try again. If the issue persists, contact support. Attach file prerender.log to your support request.\n"
-            "To retry verification or restore the backup, please run the script once again.")
+            "To retry verification, please run the script once again.")
+        
+    if not integration_successful:
+        if prompt_yes_no("Do you want to restore the original nginx configuration? (y/n): "):
+            try:
+                restore_backup(backup_path, config_path)
+                logger.info(f"Restored the original nginx configuration file from {backup_path}")
+                
+                # Try to restart nginx service
+                logger.info("Reloading nginx service, you may be prompted to enter your sudo password...")
+                try:        
+                    restart_nginx()
+                except Exception as e:
+                    logger.info("Please reload the nginx service manually and re-run the script to verify the installation.")
+                    sys.exit(0)
+            except Exception as e:
+                logger.info(f"Error restoring the original nginx configuration file: {e}")        
 
 if __name__ == "__main__":
     main()
