@@ -12,6 +12,7 @@ from temp_file_utils import temp_file_factory
 logger = logging.getLogger(__name__)
 site_url_data = temp_file_factory("./.prerender_site_url")
 token_data = temp_file_factory("./.prerender_token")
+nginx_conf_data = temp_file_factory("./.prerender_token")
 
 DEFAULT_NGINX_CONFIG_PATH = '/etc/nginx/nginx.conf'
 
@@ -72,7 +73,63 @@ def main():
     output_path = None
     site_url = None
     site_available = False
+    
+    nginx_config_path = nginx_conf_data.get_data()
+    
+    # determine the nginx configuration file
+    
+    if args.file:
+        config_path = args.file
+    elif nginx_config_path and os.path.exists(nginx_config_path):
+        if prompt_yes_no(f"Saved nginx configuration found at {nginx_conf_data.get_data()}. Do you want to use it? (y/n):"):
+            config_path = nginx_conf_data.get_data()
+    elif os.path.exists(DEFAULT_NGINX_CONFIG_PATH):
+        if prompt_yes_no(f"Default nginx configuration found at {DEFAULT_NGINX_CONFIG_PATH}. Do you want to use it? (y/n):"):
+            config_path = DEFAULT_NGINX_CONFIG_PATH
 
+    while not config_path:
+        config_path = input("Please enter the path to the nginx configuration file or type 'exit' to quit: ")
+        if config_path.lower() == 'exit':
+            sys.exit(0)
+        if not os.path.exists(config_path):
+            logger.info(f"The file at {config_path} does not exist. Please try again.")
+            config_path = None
+            
+    nginx_conf_data.save_data(config_path)
+
+    backup_path = f"{config_path}.prerender.backup"
+    
+    if validate_backup(backup_path):
+        logger.info(f"Backup of the nginx configuration file found at {backup_path}")
+        if prompt_yes_no("Do you want to restore the original nginx configuration? (y/n): "):
+            try:
+                restore_backup(backup_path, config_path)
+                logger.info(f"Restored the original nginx configuration file from {backup_path}")
+                
+                try:        
+                    restart_nginx()
+                except Exception as e:
+                    logger.info("Please reload the nginx service manually to complete restore from backup.")                    
+                    sys.exit(1)
+            except Exception as e:
+                logger.info(f"Error restoring the original nginx configuration file: {e}")
+                sys.exit(1)
+                
+            print("Original nginx configuration restored successfully.")
+            sys.exit(0)
+                
+    else:    
+        try:
+            backup_path = make_backup(config_path, backup_path)
+            nginx_conf_data.save_data(config_path)
+            logger.info(f"Backup of the nginx configuration file created at {backup_path}")
+        except Exception as e:
+            logger.info(f"Error creating backup of nginx configuration: {e}")
+            logger.info(f"Make sure you have the necessary permissions to modify files at config location.")
+            sys.exit(1)
+        
+    nginx_conf_data.save_data(config_path)
+        
     if args.url:
         site_url = args.url
     else:
@@ -80,13 +137,13 @@ def main():
         
         if site_url:
             if not prompt_yes_no(f"Do you want to integrate \"{site_url}\"? (y/n):"):
-                site_url = None 
-                site_url_data.cleanup()
+                site_url = None
 
     while not site_available:
         if not site_url:
             logger.info("Please enter the URL of the site to integrate with Prerender.io. Example https://www.site.com: ")
             site_url = input()
+            
         logger.info(f"Checking if the site at {site_url} is accessible...")
         site_available = check_access(site_url)
         if not site_available:
@@ -98,34 +155,9 @@ def main():
                 sys.exit(0)                    
             
     site_url_data.save_data(site_url)
-    
-    if args.file:
-        config_path = args.file
-    else:
-        # Check if the default nginx configuration file exists
-        if os.path.exists(DEFAULT_NGINX_CONFIG_PATH):
-            if prompt_yes_no(f"Default nginx configuration found at {DEFAULT_NGINX_CONFIG_PATH}. Do you want to use it? (y/n):"):
-                config_path = DEFAULT_NGINX_CONFIG_PATH
-
-    while not config_path:
-        config_path = input("Please enter the path to the nginx configuration file or type 'exit' to quit: ")
-        if config_path.lower() == 'exit':
-            sys.exit(0)
-        if not os.path.exists(config_path):
-            logger.info(f"The file at {config_path} does not exist. Please try again.")
-            config_path = None
-
-    backup_path = f"{config_path}.prerender.backup"
-    
-    try:
-        backup_path = make_backup(config_path, backup_path)
-        logger.info(f"Backup of the nginx configuration file created at {backup_path}")
-    except Exception as e:
-        logger.info(f"Error creating backup of nginx configuration: {e}")
-        logger.info(f"Make sure you have the necessary permissions to modify files at config location.")
-        sys.exit(1)
 
     if args.output:
+        # create new file, mostly for testing cases
         output_path = args.output
     else:
         output_path = config_path
@@ -230,8 +262,6 @@ def main():
         logger.info("No modifications were made to the nginx configuration file.")
         sys.exit(0)        
 
-    # Try to restart nginx service
-    logger.info("Reloading nginx service, you may be prompted to enter your sudo password...")
     try:        
         restart_nginx()
     except Exception as e:
@@ -263,15 +293,14 @@ def main():
                 restore_backup(backup_path, config_path)
                 logger.info(f"Restored the original nginx configuration file from {backup_path}")
                 
-                # Try to restart nginx service
-                logger.info("Reloading nginx service, you may be prompted to enter your sudo password...")
                 try:        
                     restart_nginx()
                 except Exception as e:
                     logger.info("Please reload the nginx service manually and re-run the script to verify the installation.")
                     sys.exit(0)
             except Exception as e:
-                logger.info(f"Error restoring the original nginx configuration file: {e}")        
+                logger.info(f"Error restoring the original nginx configuration file: {e}")   
+                sys.exit(1)     
 
 if __name__ == "__main__":
     main()
