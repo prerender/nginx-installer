@@ -1,7 +1,9 @@
 import os
 import sys
 import argparse
+from conf_backup import make_backup, restore_backup, validate_backup
 from crossplane_adapter import load_nginx_config, save_nginx_config
+from nginx import restart_nginx
 from prerender import add_map_section, add_location_prerenderio, rewrite_root_location, get_all_server_blocks_with_names
 from site_url import check_access, check_integration
 import logging
@@ -13,6 +15,8 @@ token_data = temp_file_factory("./.prerender_token")
 
 DEFAULT_NGINX_CONFIG_PATH = '/etc/nginx/nginx.conf'
 
+VERSION = '0.0.1'
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Portable nginx configuration CLI tool")
     parser.add_argument('-f', '--file', help='Path to the nginx configuration file', default=None)
@@ -23,11 +27,47 @@ def parse_args():
     parser.add_argument('-v', '--verbose', help='Enable verbose output', action='store_true')
     return parser.parse_args()
 
+def setup_logging(verbose):
+    log_level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(level=logging.DEBUG, format='%(message)s')
+    
+    # Clear existing handlers
+    logging.getLogger().handlers = []
+    
+    # Create a console handler with a specific log level
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(log_level)
+    console_handler.setFormatter(logging.Formatter('%(message)s'))
+    
+    # Create a file handler with a different log level
+    file_handler = logging.FileHandler('prerender.log', mode='a')
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    
+    # Add both handlers to the root logger
+    logging.getLogger().addHandler(console_handler)
+    logging.getLogger().addHandler(file_handler)
+    
+def prompt_yes_no(prompt):
+    logger.info(prompt)
+    while True:
+        response = input().lower()
+        logger.debug(f"User input for {prompt}: {response}")
+        if response == 'y':
+            return True
+        elif response == 'n':
+            return False
+        else:
+            logger.info("Please enter 'y' or 'n'")
+
 def main():
     args = parse_args()
+    setup_logging(args.verbose)
     
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
-    
+    logger.info("This tool will help you integrate your site with Prerender.io by modifying your nginx configuration.")
+    logger.debug(f"Version: {VERSION}")
+    logger.debug(f"Arguments: {args}")
+        
     config_path = None
     config = None
     output_path = None
@@ -40,24 +80,22 @@ def main():
         site_url = site_url_data.get_data()
         
         if site_url:
-            proceed = input(f"Do you want to integrate {site_url}? (y/n): ")
-            if proceed.lower() != 'y':
+            if not prompt_yes_no(f"Do you want to integrate \"{site_url}\"? (y/n):"):
                 site_url = None 
                 site_url_data.cleanup()
 
     while not site_available:
         if not site_url:
             site_url = input("Please enter the URL of the site to integrate with Prerender.io: ")
-        print(f"Checking if the site at {site_url} is accessible...")
+        logger.info(f"Checking if the site at {site_url} is accessible...")
         site_available = check_access(site_url)
         if not site_available:
             site_url = None
         else:
             prerender_verified = check_integration(site_url)
             if prerender_verified:
-                print(f"Prerender integration exists for {site_url}")
-                print("Do you want to integrate another site (y/n)?")                
-                if input().lower() == 'n':
+                logger.info(f"Prerender integration exists for {site_url}")           
+                if prompt_yes_no("Do you want to integrate another site (y/n)?"):
                     site_url = None
                     site_url_data.cleanup()
                     site_available = False
@@ -71,8 +109,7 @@ def main():
     else:
         # Check if the default nginx configuration file exists
         if os.path.exists(DEFAULT_NGINX_CONFIG_PATH):
-            use_default = input(f"Default nginx configuration found at {DEFAULT_NGINX_CONFIG_PATH}. Do you want to use it? (y/n): ")
-            if use_default.lower() == 'y':
+            if prompt_yes_no(f"Default nginx configuration found at {DEFAULT_NGINX_CONFIG_PATH}. Do you want to use it? (y/n):"):
                 config_path = DEFAULT_NGINX_CONFIG_PATH
 
     while not config_path:
@@ -80,23 +117,15 @@ def main():
         if config_path.lower() == 'exit':
             sys.exit(0)
         if not os.path.exists(config_path):
-            print(f"The file at {config_path} does not exist. Please try again.")
+            logger.info(f"The file at {config_path} does not exist. Please try again.")
             config_path = None
 
-    # Make a backup of the nginx configuration file
-    backup_index = 1
-    backup_path = f"{config_path}.backup-{backup_index}"
-    while os.path.exists(backup_path):
-        backup_index += 1
-        backup_path = f"{config_path}.backup-{backup_index}"
-    
+    backup_path = None
     try:
-        with open(config_path, 'r') as original_file:
-            with open(backup_path, 'w') as backup_file:
-                backup_file.write(original_file.read())
-        print(f"Backup of the nginx configuration file created at {backup_path}")
+        backup_path = make_backup(config_path)
+        logger.info(f"Backup of the nginx configuration file created at {backup_path}")
     except Exception as e:
-        print(f"Error creating backup of nginx configuration: {e}")
+        logger.info(f"Error creating backup of nginx configuration: {e}")
         sys.exit(1)
 
     if args.output:
@@ -107,9 +136,9 @@ def main():
     # Load and parse the nginx configuration
     try:
         config = load_nginx_config(config_path)
-        print("Nginx Configuration Loaded Successfully.") 
+        logger.info("Nginx Configuration Loaded Successfully.") 
     except Exception as e:
-        print(f"Error loading nginx configuration: {e}")
+        logger.info(f"Error loading nginx configuration: {e}")
         sys.exit(1)
 
     is_modified = False
@@ -125,9 +154,9 @@ def main():
             
             return "default (no server_name)"
 
-        print("Following server configurations were found:")
+        logger.info("Following server configurations were found:")
         for i, (server_block) in enumerate(server_blocks_with_names):
-            print(f"  {i + 1}. {get_server_name(server_block)}")
+            logger.info(f"  {i + 1}. {get_server_name(server_block)}")
 
         if not server_blocks_with_names:
             raise Exception("No server blocks found in the nginx configuration")
@@ -140,10 +169,10 @@ def main():
                     selected_server_block_index = int(input("Which server do you want to integrate? (1,2,3...): "))
                     selected_server_block = server_blocks_with_names[selected_server_block_index - 1]
                 except Exception as e:
-                    print(f"Invalid input: {e}")
+                    logger.info(f"Invalid input: {e}")
                     selected_server_block = None
 
-        print(f"Selected server configuration: {get_server_name(selected_server_block)}")
+        logger.info(f"Selected server configuration: {get_server_name(selected_server_block)}")
 
         # figure out the Prerender token
         prerender_token = None
@@ -153,8 +182,7 @@ def main():
         else:
             saved_token = token_data.get_data()
             if saved_token:
-                use_saved_token = input(f"A saved Prerender token \"{saved_token}\" was found. Do you want to use it? (y/n): ")
-                if use_saved_token.lower() == 'y':
+                if prompt_yes_no(f"A saved Prerender token \"{saved_token}\" was found. Do you want to use it? (y/n): "):
                     prerender_token = saved_token
 
         if not prerender_token:
@@ -167,71 +195,69 @@ def main():
         try:
             token_data.save_data(prerender_token)
         except Exception as e:
+            # non-critical 
             logger.debug(f"Error saving Prerender token to file: {e}")
 
         shall_modify = args.modify
 
         if not shall_modify:
-            input_modify = input("Do you want to modify the nginx configuration? (y/n): ")
-            if input_modify.lower() == 'y':
+            if prompt_yes_no("Do you want to modify the nginx configuration? (y/n): "):
                 shall_modify = True
-
-        if not os.path.exists(backup_path) or os.path.getsize(backup_path) == 0:
-            raise Exception("Unsafe to proceed : backup file is not found or corrupted")
         
         if shall_modify:
+            # not going to modify anything if no backup available
+            if not validate_backup(backup_path):
+                logger.error("Unsafe to proceed : backup file is not found or corrupted. Try to re-run the script and contact support if error persist.")
+                sys.exit(1)
+            
             add_map_section(config)
             rewrite_root_location(selected_server_block[0])
             add_location_prerenderio(selected_server_block[0], prerender_token)
             save_nginx_config(config, output_path)
             is_modified = True
-            print(f"Modified nginx configuration saved to {output_path}")
+            logger.info(f"Modified nginx configuration saved to {output_path}")
 
     except Exception as e:
-        print(f"Error : {e}")
+        logger.info(f"Error : {e}")
 
         if is_modified:
-            print(f"Config at {output_path} was modified and may be in an inconsistent state.")
+            logger.info(f"Config at {output_path} was modified and may be in an inconsistent state.")
         
-            # Restore the backup file
-            restore_backup = input("Do you want to restore the original nginx configuration file from backup? (y/n): ")
-            if restore_backup.lower() == 'y':
-                try:
-                    os.remove(config_path)
-                    os.rename(backup_path, config_path)
-                    print(f"Restored the original nginx configuration file from {backup_path}")
-                except Exception as e:
-                    print(f"Error restoring the original nginx configuration file: {e}")
+            try:
+                restore_backup(backup_path, config_path)
+                logger.info(f"Restored the original nginx configuration file from {backup_path}")
+            except Exception as e:
+                logger.info(f"Error restoring the original nginx configuration file: {e}")
 
     if not is_modified:
-        print("No modifications were made to the nginx configuration file.")
+        logger.info("No modifications were made to the nginx configuration file.")
         sys.exit(0)
 
     # Try to restart nginx service
-    try:
-        print("Reloading nginx service, you may be prompted to enter your sudo password...")
-        result = os.system("sudo nginx -s reload")
-        if result != 0:
-            raise Exception("Failed to reload nginx service. Please check if 'nginx' is available and try again.")
-        print("Nginx service reloaded successfully.")
+    logger.info("Reloading nginx service, you may be prompted to enter your sudo password...")
+    try:        
+        restart_nginx()
     except Exception as e:
-        print("Please reload the nginx service manually and re-run the script to verify the installation.")
+        logger.info("Please reload the nginx service manually and re-run the script to verify the installation.")
         sys.exit(0)
     
     # Verify that the site is accessible and Prerender integration is installed
     try:
         integration_successful = check_integration(site_url)
         if integration_successful:
-            print(f"Prerender integration successfully verified for {site_url}")
+            logger.info(f"Prerender integration successfully verified for {site_url}")
         else:
-            raise Exception("Prerender integration verification failed.")
+            logger.info(f"Prerender integration not found for {site_url}")
     except Exception as e:
-        print(f"Error verifying Prerender integration: {e}")
+        logger.info(f"Error verifying Prerender integration: {e}")
         
-    print("Installation completed successfully.")
-    
-    site_url_data.cleanup()
-    token_data.cleanup()
+    if not integration_successful:
+        logger.info("Verification failed. Possible reasons include:\n"
+            "- Incorrect routing configuration.\n"
+            "- Firewall rules blocking access.\n"
+            "- Non-standard nginx configuration.\n"
+            "Please check your configuration and try again. If the issue persists, contact support. Attach file prerender.log to your support request.\n"
+            "To retry verification or restore the backup, please run the script once again.")
 
 if __name__ == "__main__":
     main()
