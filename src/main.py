@@ -12,7 +12,7 @@ from temp_file_utils import temp_file_factory
 logger = logging.getLogger(__name__)
 site_url_data = temp_file_factory("./.prerender_site_url")
 token_data = temp_file_factory("./.prerender_token")
-nginx_conf_data = temp_file_factory("./.prerender_token")
+nginx_conf_data = temp_file_factory("./.prerender_nginx_conf")
 
 DEFAULT_NGINX_CONFIG_PATH = '/etc/nginx/nginx.conf'
 
@@ -74,13 +74,13 @@ def main():
     site_url = None
     site_available = False
     
-    nginx_config_path = nginx_conf_data.get_data()
+    saved_nginx_config_path = nginx_conf_data.get_data()
     
     # determine the nginx configuration file
     
     if args.file:
         config_path = args.file
-    elif nginx_config_path and os.path.exists(nginx_config_path):
+    elif saved_nginx_config_path and os.path.exists(saved_nginx_config_path):
         if prompt_yes_no(f"Saved nginx configuration found at {nginx_conf_data.get_data()}. Do you want to use it? (y/n):"):
             config_path = nginx_conf_data.get_data()
     elif os.path.exists(DEFAULT_NGINX_CONFIG_PATH):

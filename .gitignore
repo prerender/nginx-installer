@@ -7,4 +7,5 @@
 **/*.conf.prerender.backup*
 /.prerender_site_url
 /.prerender_token
+/.prerender_nginx_conf
 /prerender.log
