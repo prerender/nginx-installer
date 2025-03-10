@@ -1,6 +1,5 @@
 
 import os
-import sys
 
 def make_backup(config_path: str):
     backup_index = 1
