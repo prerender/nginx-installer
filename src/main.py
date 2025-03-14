@@ -25,7 +25,7 @@ MSG_VERIFICATION_FAILED_WITH_REASONS = "Verification failed. Possible reasons :\
 "Please check your configuration and try again. If the issue persists, contact support. Attach file prerender.log to your support request.\n" \
 "To retry verification or restore backup, please run the script once again."
 
-VERSION = '0.0.3'
+VERSION = '0.0.4'
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Portable nginx configuration CLI tool")
@@ -216,6 +216,28 @@ def main():
         output_path = args.output
     else:
         output_path = main_config_path
+        
+    # figure out the Prerender token
+    
+    if args.token:
+        prerender_token = args.token
+    else:
+        saved_token = token_data.get_data()
+        if saved_token:
+            if prompt_yes_no(f"A saved Prerender token \"{saved_token}\" was found. Do you want to use it? (y/n): "):
+                prerender_token = saved_token
+
+    if not prerender_token:
+        prerender_token = input("Please enter your Prerender token: ")
+
+    if not prerender_token:
+        raise Exception("Prerender token is required to proceed.")
+    
+    try:
+        token_data.save_data(prerender_token)
+    except Exception as e:
+        # non-critical 
+        logger.debug(f"Error saving Prerender token to file: {e}")    
 
     is_modified = False
     
@@ -287,50 +309,31 @@ def main():
         else:
             logger.debug(f"Main config and server config are the same")
             server_conf_data.cleanup()
-
-        # figure out the Prerender token
+                        
         
-        if args.token:
-            prerender_token = args.token
-        else:
-            saved_token = token_data.get_data()
-            if saved_token:
-                if prompt_yes_no(f"A saved Prerender token \"{saved_token}\" was found. Do you want to use it? (y/n): "):
-                    prerender_token = saved_token
-
-        if not prerender_token:
-            prerender_token = input("Please enter your Prerender token: ")
-
-        if not prerender_token:
-            raise Exception("Prerender token is required to proceed.")
+        #make changes to the configuration
         
-        try:
-            token_data.save_data(prerender_token)
-        except Exception as e:
-            # non-critical 
-            logger.debug(f"Error saving Prerender token to file: {e}")
+        add_map_section(main_config)
+        rewrite_root_location(selected_server_block['block'][0])
+        add_location_prerenderio(selected_server_block['block'][0], prerender_token)
+        
+        # not going to modify anything if no backup available
+        
+        if not validate_backup(nginx_conf_backup_path) or (server_conf_path != main_config_path and not validate_backup(server_conf_backup_path)):
+            logger.error("Unsafe to proceed : backup file is not found or corrupted. Try to re-run the script and contact support if error persist.")
+            sys.exit(1)
+                    
+        if not args.modify and not prompt_yes_no("We're ready to modify the nginx configuration. Continue? (y/n): "):
+            logger.info("Modifications were not saved.")
+            sys.exit(0)                    
+        
+        # save the modified configuration
+        
+        save_nginx_config(main_config, output_path)
+        if server_conf_path != main_config_path:
+            save_nginx_config(selected_server_block['config']['parsed'], server_conf_path)
             
-        # Prepare to modify the nginx configuration
-
-        shall_modify = args.modify
-
-        if not shall_modify:
-            if prompt_yes_no("We're ready to modify the nginx configuration. Continue? (y/n): "):
-                shall_modify = True
-        
-        if shall_modify:
-            # not going to modify anything if no backup available
-            if not validate_backup(nginx_conf_backup_path) or (server_conf_path != main_config_path and not validate_backup(server_conf_backup_path)):
-                logger.error("Unsafe to proceed : backup file is not found or corrupted. Try to re-run the script and contact support if error persist.")
-                sys.exit(1)
-            
-            add_map_section(main_config)
-            rewrite_root_location(selected_server_block['block'][0])
-            add_location_prerenderio(selected_server_block['block'][0], prerender_token)
-            save_nginx_config(main_config, output_path)
-            if server_conf_path != main_config_path:
-                save_nginx_config(selected_server_block['config']['parsed'], server_conf_path)
-            is_modified = True
+        is_modified = True
     except Exception as e:
         logger.error(f"Error : {e}")
         logger.debug(traceback.format_exc())
