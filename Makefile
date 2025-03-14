@@ -5,12 +5,13 @@ CONTAINER_NAME := my-python-app-container
 BIN_DIR := bin
 EXECUTABLE := main
 BIN_EXE_LINUX := prerender-nginx-linux
+BIN_EXE := prerender-nginx
 
 # Default target
 # all: build
 
 # Build the Docker image and copy the executable to the host filesystem
-build-linux:
+build-docker:
 	@echo "Building Docker image..."
 	docker build -t $(DOCKER_IMAGE) -f $(DOCKERFILE) .
 	@echo "Creating container..."
@@ -21,6 +22,12 @@ build-linux:
 	@echo "Cleaning up..."
 	docker rm $(CONTAINER_NAME)
 	@echo "Executable copied to ./$(BIN_DIR)/$(BIN_EXE_LINUX)"
+
+build:
+	@echo "Building executable..."
+	pyinstaller --onefile --distpath $(BIN_DIR) --name $(BIN_EXE) src/main.py
+	@echo "Executable built in ./$(BIN_DIR)/$(BIN_EXE)"
+
 
 # Clean up build artifacts and temporary files
 clean:
