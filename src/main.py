@@ -16,7 +16,14 @@ nginx_conf_data = temp_file_factory("./.prerender_nginx_conf")
 
 DEFAULT_NGINX_CONFIG_PATH = '/etc/nginx/nginx.conf'
 
-VERSION = '0.0.1'
+MSG_VERIFICATION_FAILED_WITH_REASONS = "Verification failed. Possible reasons :\n" \
+"- Firewall rules blocking access.\n" \
+"- Invalid Prerender token.\n" \
+"- Incorrect routing configuration.\n" \
+"Please check your configuration and try again. If the issue persists, contact support. Attach file prerender.log to your support request.\n" \
+"To retry verification or restore backup, please run the script once again."
+
+VERSION = '0.0.2'
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Portable nginx configuration CLI tool")
@@ -67,6 +74,9 @@ def main():
     
     logger.debug(f"Version: {VERSION}")
     logger.debug(f"Arguments: {args}")
+    logger.debug(f"Operating System: {os.name}")
+    logger.debug(f"Platform: {sys.platform}")
+    logger.debug(f"Version: {os.uname()}")
         
     config_path = None
     config = None
@@ -74,14 +84,31 @@ def main():
     site_url = None
     site_available = False
     
-    saved_nginx_config_path = nginx_conf_data.get_data()
+    # if has saved url, ask if user wants to verify integration
+    saved_site_url = site_url_data.get_data()
+    
+    if site_url_data.get_data():
+        if prompt_yes_no(f"Do you want to verify integration of {saved_site_url}? (y/n):"):            
+            try:
+                prerender_verified = check_integration(saved_site_url)
+                if prerender_verified:
+                    logger.info(f"Prerender integration successfully verified for {saved_site_url}")
+            except Exception as e:
+                logger.info(f"Error verifying Prerender integration: {e}")
+            
+            if not prerender_verified:
+                logger.info(MSG_VERIFICATION_FAILED_WITH_REASONS)
+            
+            sys.exit(0)
     
     # determine the nginx configuration file
+    
+    saved_nginx_config_path = nginx_conf_data.get_data()
     
     if args.file:
         config_path = args.file
     elif saved_nginx_config_path and os.path.exists(saved_nginx_config_path):
-        if prompt_yes_no(f"Saved nginx configuration found at {nginx_conf_data.get_data()}. Do you want to use it? (y/n):"):
+        if prompt_yes_no(f"Saved nginx configuration found at {saved_nginx_config_path}. Do you want to use it? (y/n):"):
             config_path = nginx_conf_data.get_data()
     elif os.path.exists(DEFAULT_NGINX_CONFIG_PATH):
         if prompt_yes_no(f"Default nginx configuration found at {DEFAULT_NGINX_CONFIG_PATH}. Do you want to use it? (y/n):"):
@@ -94,14 +121,11 @@ def main():
         if not os.path.exists(config_path):
             logger.info(f"The file at {config_path} does not exist. Please try again.")
             config_path = None
-            
-    nginx_conf_data.save_data(config_path)
 
     backup_path = f"{config_path}.prerender.backup"
     
     if validate_backup(backup_path):
-        logger.info(f"Backup of the nginx configuration file found at {backup_path}")
-        if prompt_yes_no("Do you want to restore the original nginx configuration? (y/n): "):
+        if prompt_yes_no(f"Do you want to restore the original nginx configuration from \"{backup_path}\"? (y/n): "):
             try:
                 restore_backup(backup_path, config_path)
                 logger.info(f"Restored the original nginx configuration file from {backup_path}")
@@ -116,8 +140,7 @@ def main():
                 sys.exit(1)
                 
             print("Original nginx configuration restored successfully.")
-            sys.exit(0)
-                
+            sys.exit(0)                
     else:    
         try:
             backup_path = make_backup(config_path, backup_path)
@@ -125,7 +148,6 @@ def main():
             logger.info(f"Backup of the nginx configuration file created at {backup_path}")
         except Exception as e:
             logger.info(f"Error creating backup of nginx configuration: {e}")
-            logger.info(f"Make sure you have the necessary permissions to modify files at config location.")
             sys.exit(1)
         
     nginx_conf_data.save_data(config_path)
@@ -148,11 +170,6 @@ def main():
         site_available = check_access(site_url)
         if not site_available:
             site_url = None
-        else:
-            prerender_verified = check_integration(site_url)
-            if prerender_verified:
-                logger.info(f"Prerender integration exists for {site_url}")           
-                sys.exit(0)                    
             
     site_url_data.save_data(site_url)
 
@@ -279,13 +296,7 @@ def main():
         logger.info(f"Error verifying Prerender integration: {e}")
         
     if not integration_successful:
-        logger.info("Verification failed. Possible reasons include:\n"
-            "- Incorrect routing configuration.\n"
-            "- Firewall rules blocking access.\n"
-            "- Invalid Prerender token.\n"
-            "- Non-standard nginx configuration.\n"
-            "Please check your configuration and try again. If the issue persists, contact support. Attach file prerender.log to your support request.\n"
-            "To retry verification, please run the script once again.")
+        logger.info(MSG_VERIFICATION_FAILED_WITH_REASONS)
         
     if not integration_successful:
         if prompt_yes_no("Do you want to restore the original nginx configuration? (y/n): "):
