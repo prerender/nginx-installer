@@ -33,5 +33,6 @@ build:
 clean:
 	rm -rf build dist **/*.spec
 	rm -f ./prerender.log ./.prerender-site
+	rm -rf **/*.prerender.backup ./*.prerender.backup
 
 .PHONY: all build clean

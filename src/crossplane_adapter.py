@@ -1,14 +1,15 @@
 import crossplane
 
 def load_nginx_config(file_path):
-    payload = crossplane.parse(file_path,comments=True,single=True, strict=False)
+    payload = crossplane.parse(file_path,comments=True, single=False, strict=False)
 
-    try:
-        config = payload['config'][0]['parsed']
-    except KeyError:
-        raise Exception("Can't get parsed config from payload")
+    if not payload:
+        raise Exception("Failed to parse configuration with crossplane")
+    
+    if not payload['config'][0]['status'] == 'ok':
+        raise Exception("Failed to parse configuration with crossplane")
 
-    return config
+    return payload
 
 def save_nginx_config(config, file_path):
     config_str = crossplane.build(config)

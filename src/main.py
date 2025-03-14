@@ -1,10 +1,11 @@
 import os
 import sys
 import argparse
+import traceback
 from conf_backup import make_backup, restore_backup, validate_backup
 from crossplane_adapter import load_nginx_config, save_nginx_config
 from nginx import restart_nginx
-from prerender import add_map_section, add_location_prerenderio, rewrite_root_location, get_all_server_blocks_with_names
+from prerender import add_map_section, add_location_prerenderio, rewrite_root_location, get_all_server_blocks_with_attrs
 from site_url import check_access, check_integration
 import logging
 from temp_file_utils import temp_file_factory
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 site_url_data = temp_file_factory("./.prerender_site_url")
 token_data = temp_file_factory("./.prerender_token")
 nginx_conf_data = temp_file_factory("./.prerender_nginx_conf")
+server_conf_data = temp_file_factory("./.prerender_server_conf")
 
 DEFAULT_NGINX_CONFIG_PATH = '/etc/nginx/nginx.conf'
 
@@ -23,7 +25,7 @@ MSG_VERIFICATION_FAILED_WITH_REASONS = "Verification failed. Possible reasons :\
 "Please check your configuration and try again. If the issue persists, contact support. Attach file prerender.log to your support request.\n" \
 "To retry verification or restore backup, please run the script once again."
 
-VERSION = '0.0.2'
+VERSION = '0.0.3'
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Portable nginx configuration CLI tool")
@@ -78,16 +80,18 @@ def main():
     logger.debug(f"Platform: {sys.platform}")
     logger.debug(f"Version: {os.uname()}")
         
-    config_path = None
-    config = None
+    main_config_path = None
+    parsed_configs = None
     output_path = None
     site_url = None
     site_available = False
+    prerender_token = None
     
-    # if has saved url, ask if user wants to verify integration
+    # verify integration flow
+    
     saved_site_url = site_url_data.get_data()
     
-    if site_url_data.get_data():
+    if not args.modify and site_url_data.get_data():
         if prompt_yes_no(f"Do you want to verify integration of {saved_site_url}? (y/n):"):            
             try:
                 prerender_verified = check_integration(saved_site_url)
@@ -101,34 +105,36 @@ def main():
             
             sys.exit(0)
     
-    # determine the nginx configuration file
+    # todo move backup flow to separate function / module
+    
+    def get_backup_path(config_path):
+        return f"{config_path}.prerender.backup"
     
     saved_nginx_config_path = nginx_conf_data.get_data()
+    saved_server_conf_path = server_conf_data.get_data() 
     
-    if args.file:
-        config_path = args.file
-    elif saved_nginx_config_path and os.path.exists(saved_nginx_config_path):
-        if prompt_yes_no(f"Saved nginx configuration found at {saved_nginx_config_path}. Do you want to use it? (y/n):"):
-            config_path = nginx_conf_data.get_data()
-    elif os.path.exists(DEFAULT_NGINX_CONFIG_PATH):
-        if prompt_yes_no(f"Default nginx configuration found at {DEFAULT_NGINX_CONFIG_PATH}. Do you want to use it? (y/n):"):
-            config_path = DEFAULT_NGINX_CONFIG_PATH
-
-    while not config_path:
-        config_path = input("Please enter the path to the nginx configuration file or type 'exit' to quit: ")
-        if config_path.lower() == 'exit':
-            sys.exit(0)
-        if not os.path.exists(config_path):
-            logger.info(f"The file at {config_path} does not exist. Please try again.")
-            config_path = None
-
-    backup_path = f"{config_path}.prerender.backup"
+    saved_nginx_backup_ready = False
+    saved_server_backup_ready = False
     
-    if validate_backup(backup_path):
-        if prompt_yes_no(f"Do you want to restore the original nginx configuration from \"{backup_path}\"? (y/n): "):
+    saved_nginx_backup_path = get_backup_path(saved_nginx_config_path)
+    if os.path.exists(saved_nginx_config_path) and validate_backup(saved_nginx_backup_path):
+        logger.info(f"Backup of the saved nginx configuration file found at {saved_nginx_backup_path}")
+        saved_nginx_backup_ready = True
+        
+    saved_server_backup_path = get_backup_path(saved_server_conf_path)
+    if os.path.exists(saved_server_conf_path) and validate_backup(saved_server_backup_path):
+        logger.info(f"Backup of the saved server configuration file found at {saved_server_backup_path}")
+        saved_server_backup_ready = True
+        
+    
+    if not args.modify and (saved_nginx_backup_ready or saved_server_backup_ready):
+        if prompt_yes_no(f"Do you want to restore the original nginx configuration from backup? (y/n): "):                    
             try:
-                restore_backup(backup_path, config_path)
-                logger.info(f"Restored the original nginx configuration file from {backup_path}")
+                if saved_nginx_backup_ready:
+                    restore_backup(saved_nginx_backup_path, saved_nginx_config_path)
+            
+                if saved_server_backup_ready:
+                    restore_backup(saved_server_backup_path, saved_server_conf_path)
                 
                 try:        
                     restart_nginx()
@@ -136,21 +142,52 @@ def main():
                     logger.info("Please reload the nginx service manually to complete restore from backup.")                    
                     sys.exit(1)
             except Exception as e:
-                logger.info(f"Error restoring the original nginx configuration file: {e}")
+                logger.error(f"Error : {e}")
+                logger.debug(traceback.format_exc())
                 sys.exit(1)
                 
             print("Original nginx configuration restored successfully.")
-            sys.exit(0)                
-    else:    
-        try:
-            backup_path = make_backup(config_path, backup_path)
-            nginx_conf_data.save_data(config_path)
-            logger.info(f"Backup of the nginx configuration file created at {backup_path}")
-        except Exception as e:
-            logger.info(f"Error creating backup of nginx configuration: {e}")
-            sys.exit(1)
+            sys.exit(0)     
+    
+    # decide which nginx configuration file to use
+    
+    if args.file:
+        main_config_path = args.file
+    elif saved_nginx_config_path and os.path.exists(saved_nginx_config_path):
+        if prompt_yes_no(f"Saved nginx configuration found at {saved_nginx_config_path}. Do you want to use it? (y/n):"):
+            main_config_path = nginx_conf_data.get_data()
+    elif os.path.exists(DEFAULT_NGINX_CONFIG_PATH):
+        if prompt_yes_no(f"Default nginx configuration found at {DEFAULT_NGINX_CONFIG_PATH}. Do you want to use it? (y/n):"):
+            main_config_path = DEFAULT_NGINX_CONFIG_PATH
+
+    while not main_config_path:
+        main_config_path = input("Please enter the path to the nginx configuration file or type 'exit' to quit: ")
+        if main_config_path.lower() == 'exit':
+            sys.exit(0)
+        if not os.path.exists(main_config_path):
+            logger.info(f"The file at {main_config_path} does not exist. Please try again.")
+            main_config_path = None          
+            
+    # Load and parse the nginx configuration
+    try:
+        parsed_configs = load_nginx_config(main_config_path)
+        logger.info("Nginx configuration loaded successfully.") 
+    except Exception as e:
+        logger.info(f"Error loading nginx configuration: {e}")
+        sys.exit(1)
         
-    nginx_conf_data.save_data(config_path)
+    logger.debug(f"Parsed configs: {parsed_configs}")
+            
+    nginx_conf_backup_path = get_backup_path(main_config_path)
+            
+    if not validate_backup(nginx_conf_backup_path):     
+        nginx_conf_backup_path = make_backup(main_config_path, nginx_conf_backup_path)
+        nginx_conf_data.save_data(main_config_path)
+        logger.info(f"Backup of the nginx configuration file created at {nginx_conf_backup_path}")
+        
+    nginx_conf_data.save_data(main_config_path)
+    
+    # decide on site URL
         
     if args.url:
         site_url = args.url
@@ -174,55 +211,85 @@ def main():
     site_url_data.save_data(site_url)
 
     if args.output:
+        # todo – remove this option to avaoid extra flow branching
         # create new file, mostly for testing cases
         output_path = args.output
     else:
-        output_path = config_path
-
-    # Load and parse the nginx configuration
-    try:
-        config = load_nginx_config(config_path)
-        logger.info("Nginx configuration loaded successfully.") 
-    except Exception as e:
-        logger.info(f"Error loading nginx configuration: {e}")
-        sys.exit(1)
+        output_path = main_config_path
 
     is_modified = False
-
+    
     try:
         # Get all server blocks with their server names
         selected_server_block = None
-        server_blocks_with_names = get_all_server_blocks_with_names(config)
-
+        main_config = parsed_configs['config'][0]['parsed']
+        
+        server_blocks = []
+        
         def get_server_name(server_block):
-            if server_block[1]:
-                return server_block[1]
+            (server_block, server_name, server_listening) = server_block
             
-            return "default (no server_name)"
+            server_name = server_name if server_name else "(no server_name)"
+            
+            return f"{server_name} {server_listening}"
+        
+        for i, (config) in enumerate(parsed_configs['config']):
+            logger.debug(f"Config {i}: {config}")
+            
+            if not config['status'] == 'ok':
+                logger.warning(f"Skipping config {i} due to parsing error")
+                continue                
+
+            for server_block in get_all_server_blocks_with_attrs(config['parsed']):
+                server_blocks.append({
+                    "block": server_block,
+                    "config": config,
+                    "name": get_server_name(server_block)
+                })
 
         logger.info("Following server configurations were found:")
-        for i, (server_block) in enumerate(server_blocks_with_names):
-            logger.info(f"  {i + 1}. {get_server_name(server_block)}")
+        for i, (server_block) in enumerate(server_blocks):
+            logger.info(f"  {i + 1}. {server_block['name']}")
 
-        if not server_blocks_with_names:
+        if len(server_blocks) == 0:
             raise Exception("No server blocks found in the nginx configuration")
         
-        if len(server_blocks_with_names) == 1:
-            selected_server_block = server_blocks_with_names[0]
+        if len(server_blocks) == 1:
+            selected_server_block = server_blocks[0]
+            
         else:
             while not selected_server_block:
                 try:
                     selected_server_block_index = int(input("Which server do you want to integrate? (1,2,3...): "))
-                    selected_server_block = server_blocks_with_names[selected_server_block_index - 1]
+                    selected_server_block = server_blocks[selected_server_block_index - 1]
                 except Exception as e:
                     logger.info(f"Invalid input: {e}")
                     selected_server_block = None
 
         logger.info(f"Selected server configuration: {get_server_name(selected_server_block)}")
+        
+        # Backup the server configuration file
+        
+        server_conf_path = selected_server_block['config']['file']
+        
+        # if main config is the same as the server config, we don't need to backup it twice
+        if  server_conf_path != main_config_path:        
+            logger.debug(f"Main config and server config are different, using different backup paths")
+            
+            server_conf_data.save_data(server_conf_path)
+            server_conf_backup_path = get_backup_path(server_conf_path)
+            
+            if not validate_backup(server_conf_backup_path):
+                make_backup(server_conf_path, server_conf_backup_path)
+                logger.info(f"Backup of the server configuration file created at {server_conf_backup_path}")
+            else:
+                logger.debug(f"Backup of the server configuration file found at {server_conf_backup_path}")
+        else:
+            logger.debug(f"Main config and server config are the same")
+            server_conf_data.cleanup()
 
         # figure out the Prerender token
-        prerender_token = None
-
+        
         if args.token:
             prerender_token = args.token
         else:
@@ -237,12 +304,13 @@ def main():
         if not prerender_token:
             raise Exception("Prerender token is required to proceed.")
         
-        # Save the Prerender token to a file
         try:
             token_data.save_data(prerender_token)
         except Exception as e:
             # non-critical 
             logger.debug(f"Error saving Prerender token to file: {e}")
+            
+        # Prepare to modify the nginx configuration
 
         shall_modify = args.modify
 
@@ -252,26 +320,27 @@ def main():
         
         if shall_modify:
             # not going to modify anything if no backup available
-            if not validate_backup(backup_path):
+            if not validate_backup(nginx_conf_backup_path) or (server_conf_path != main_config_path and not validate_backup(server_conf_backup_path)):
                 logger.error("Unsafe to proceed : backup file is not found or corrupted. Try to re-run the script and contact support if error persist.")
                 sys.exit(1)
             
-            add_map_section(config)
-            rewrite_root_location(selected_server_block[0])
-            add_location_prerenderio(selected_server_block[0], prerender_token)
-            save_nginx_config(config, output_path)
+            add_map_section(main_config)
+            rewrite_root_location(selected_server_block['block'][0])
+            add_location_prerenderio(selected_server_block['block'][0], prerender_token)
+            save_nginx_config(main_config, output_path)
+            if server_conf_path != main_config_path:
+                save_nginx_config(selected_server_block['config']['parsed'], server_conf_path)
             is_modified = True
-            logger.info(f"Modified nginx configuration saved to {output_path}")
-
     except Exception as e:
-        logger.info(f"Error : {e}")
-
+        logger.error(f"Error : {e}")
+        logger.debug(traceback.format_exc())
+        
         if is_modified:
             logger.info(f"Config at {output_path} was modified and may be in an inconsistent state.")
         
             try:
-                restore_backup(backup_path, config_path)
-                logger.info(f"Restored the original nginx configuration file from {backup_path}")
+                restore_backup(nginx_conf_backup_path, main_config_path)
+                logger.info(f"Restored the original nginx configuration file from {nginx_conf_backup_path}")
             except Exception as e:
                 logger.info(f"Error restoring the original nginx configuration file: {e}")
 
@@ -301,8 +370,10 @@ def main():
     if not integration_successful:
         if prompt_yes_no("Do you want to restore the original nginx configuration? (y/n): "):
             try:
-                restore_backup(backup_path, config_path)
-                logger.info(f"Restored the original nginx configuration file from {backup_path}")
+                restore_backup(nginx_conf_backup_path, main_config_path)
+                if server_conf_backup_path:
+                    restore_backup(server_conf_backup_path, server_conf_path)
+                logger.info(f"Restored the original nginx configuration file from {nginx_conf_backup_path}")
                 
                 try:        
                     restart_nginx()

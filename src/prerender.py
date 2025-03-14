@@ -5,35 +5,36 @@ def get_http_section(config: list) -> dict:
     for section in config:
         if section.get("directive") == "http":
             return section
-    raise Exception("No http section found in the configuration")
+    
+    return None
 
-def get_all_server_blocks_with_names(config: list) -> list:
+def get_all_server_blocks_with_attrs(config: list) -> list:
     """
     Returns a list of server blocks with their server names.
     If a server block does not have a server name, it will be None.
     """
-    http_section = get_http_section(config)
+
     server_blocks_with_names = []
-    for directive in http_section.get("block", []):
+    http_section = get_http_section(config)    
+    
+    if http_section is not None:
+        iterable_section = http_section.get("block", [])
+    else:
+        iterable_section = config
+    
+    for directive in iterable_section:
         if directive.get("directive") == "server":
             server_name = None
+            server_listening = None
+            
             for server_directive in directive.get("block", []):
                 if server_directive.get("directive") == "server_name":
                     server_name = server_directive.get("args", [None])[0]
-                    break
-            server_blocks_with_names.append((directive, server_name))
+                elif server_directive.get("directive") == "listen":
+                    server_listening = server_directive.get("args", [None])[0]
+
+            server_blocks_with_names.append((directive, server_name, server_listening))
     return server_blocks_with_names
-
-
-def get_server_block(config: list) -> dict:
-    """
-    Returns the first server block found in the http section.
-    """
-    http_section = get_http_section(config)
-    for directive in http_section.get("block", []):
-        if directive.get("directive") == "server":
-            return directive
-    raise Exception("No server block found in the http section")
 
 """
     Returns the location block with the given path in the server block.
@@ -50,15 +51,7 @@ def add_map_section(config: list) -> None:
     """
     Adds or updates map directives in the http section before the first server block.
     """
-    http_section = get_http_section(config)
-    # Find the index of the first server block in the http section
-    server_index = None
-    for i, directive in enumerate(http_section.get("block", [])):
-        if directive.get("directive") == "server":
-            server_index = i
-            break
-    if server_index is None:
-        raise Exception("No server directive found in the http section")
+    http_section = get_http_section(config)    
 
     # Build map directive: map $http_user_agent $prerender_ua { ... }
     map_http_user_agent = {
@@ -143,6 +136,8 @@ def add_map_section(config: list) -> None:
         map_http_x_prerender,
         map_uri
     ]
+    
+    insert_index = 0
 
     for map_directive in maps_to_insert:
         replaced = False
@@ -150,10 +145,12 @@ def add_map_section(config: list) -> None:
             if directive.get("directive") == "map" and directive.get("args", []) == map_directive["args"]:
                 http_section["block"][i] = map_directive
                 replaced = True
+                # if some of the map not present, insert it after the last map directive
+                insert_index = i
                 break
         if not replaced:
-            http_section["block"].insert(server_index, map_directive)
-            server_index += 1
+            http_section["block"].insert(insert_index, map_directive)
+            insert_index += 1                            
 
 """
 location / {

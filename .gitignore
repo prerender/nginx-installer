@@ -8,4 +8,5 @@
 /.prerender_site_url
 /.prerender_token
 /.prerender_nginx_conf
+/.prerender_server_conf
 /prerender.log
