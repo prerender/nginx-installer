@@ -3,9 +3,16 @@
         {
             "type": "debugpy",
             "request": "launch",
-            "name": "Launch Program",
+            "name": "conf.d",
             "program": "${workspaceFolder}/src/main.py",
             "args": ["--verbose", "-f", "config-examples/confd-includes.conf", "-m", "True", "--url", "https://google.com"]   
+        },
+        {
+            "type": "debugpy",
+            "request": "launch",
+            "name": "config-examples/nginx.conf",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": ["--verbose", "-f", "config-examples/nginx.conf"]   
         }
     ]
 }

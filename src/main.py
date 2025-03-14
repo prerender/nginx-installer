@@ -117,12 +117,12 @@ def main():
     saved_server_backup_ready = False
     
     saved_nginx_backup_path = get_backup_path(saved_nginx_config_path)
-    if os.path.exists(saved_nginx_config_path) and validate_backup(saved_nginx_backup_path):
+    if saved_nginx_config_path and os.path.exists(saved_nginx_config_path) and validate_backup(saved_nginx_backup_path):
         logger.info(f"Backup of the saved nginx configuration file found at {saved_nginx_backup_path}")
         saved_nginx_backup_ready = True
         
     saved_server_backup_path = get_backup_path(saved_server_conf_path)
-    if os.path.exists(saved_server_conf_path) and validate_backup(saved_server_backup_path):
+    if saved_server_conf_path and os.path.exists(saved_server_conf_path) and validate_backup(saved_server_backup_path):
         logger.info(f"Backup of the saved server configuration file found at {saved_server_backup_path}")
         saved_server_backup_ready = True
         
@@ -154,7 +154,7 @@ def main():
     if args.file:
         main_config_path = args.file
     elif saved_nginx_config_path and os.path.exists(saved_nginx_config_path):
-        if prompt_yes_no(f"Saved nginx configuration found at {saved_nginx_config_path}. Do you want to use it? (y/n):"):
+        if prompt_yes_no(f"Continue with {saved_nginx_config_path} (y) or try another file? (y/n):"):
             main_config_path = nginx_conf_data.get_data()
     elif os.path.exists(DEFAULT_NGINX_CONFIG_PATH):
         if prompt_yes_no(f"Default nginx configuration found at {DEFAULT_NGINX_CONFIG_PATH}. Do you want to use it? (y/n):"):
@@ -315,7 +315,7 @@ def main():
         shall_modify = args.modify
 
         if not shall_modify:
-            if prompt_yes_no("Do you want to modify the nginx configuration? (y/n): "):
+            if prompt_yes_no("We're ready to modify the nginx configuration. Continue? (y/n): "):
                 shall_modify = True
         
         if shall_modify:
