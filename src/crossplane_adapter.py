@@ -1,13 +1,17 @@
 import crossplane
+import logging
+
+logger = logging.getLogger(__name__)
 
 def load_nginx_config(file_path):
     payload = crossplane.parse(file_path,comments=True, single=False, strict=False)
 
     if not payload:
-        raise Exception("Failed to parse configuration with crossplane")
+        raise Exception("Failed to parse configuration.")
     
-    if not payload['config'][0]['status'] == 'ok':
-        raise Exception("Failed to parse configuration with crossplane")
+    if len(payload['config'][0]['errors']):        
+        logger.error(payload['config'][0]['errors'])
+        raise Exception("Failed to parse configuration.")
 
     return payload
 

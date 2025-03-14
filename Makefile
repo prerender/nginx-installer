@@ -5,7 +5,7 @@ CONTAINER_NAME := my-python-app-container
 BIN_DIR := bin
 EXECUTABLE := main
 BIN_EXE_LINUX := prerender-nginx-linux
-BIN_EXE := prerender-nginx
+BIN_EXE := prerender-nginx-mac
 
 # Default target
 # all: build
@@ -31,7 +31,7 @@ build:
 
 # Clean up build artifacts and temporary files
 clean:
-	rm -rf build dist **/*.spec
+	rm -rf build dist **/*.spec ./*.spec
 	rm -f ./prerender.log ./.prerender-site
 	rm -rf **/*.prerender.backup ./*.prerender.backup
 

@@ -7,7 +7,7 @@ def make_backup(config_path: str, backup_path: str):
                 backup_file.write(original_file.read())
 
 def validate_backup(backup_path: str) -> bool:
-    if not os.path.exists(backup_path) or os.path.getsize(backup_path) == 0:
+    if not backup_path or not os.path.exists(backup_path) or os.path.getsize(backup_path) == 0:
             return False
     return True
         

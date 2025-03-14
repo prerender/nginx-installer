@@ -20,8 +20,8 @@ DEFAULT_NGINX_CONFIG_PATH = '/etc/nginx/nginx.conf'
 
 MSG_VERIFICATION_FAILED_WITH_REASONS = "Verification failed. Possible reasons :\n" \
 "- Firewall rules blocking access.\n" \
+"- Wrong server block picked.\n" \
 "- Invalid Prerender token.\n" \
-"- Incorrect routing configuration.\n" \
 "Please check your configuration and try again. If the issue persists, contact support. Attach file prerender.log to your support request.\n" \
 "To retry verification or restore backup, please run the script once again."
 
@@ -165,7 +165,7 @@ def main():
         if main_config_path.lower() == 'exit':
             sys.exit(0)
         if not os.path.exists(main_config_path):
-            logger.info(f"The file at {main_config_path} does not exist. Please try again.")
+            logger.info(f"The file at {main_config_path} does not exist. Please specify correct path to nginx.conf file.")
             main_config_path = None          
             
     # Load and parse the nginx configuration
@@ -174,6 +174,7 @@ def main():
         logger.info("Nginx configuration loaded successfully.") 
     except Exception as e:
         logger.info(f"Error loading nginx configuration: {e}")
+        logger.debug(traceback.format_exc())
         sys.exit(1)
         
     logger.debug(f"Parsed configs: {parsed_configs}")
@@ -181,8 +182,7 @@ def main():
     nginx_conf_backup_path = get_backup_path(main_config_path)
             
     if not validate_backup(nginx_conf_backup_path):     
-        nginx_conf_backup_path = make_backup(main_config_path, nginx_conf_backup_path)
-        nginx_conf_data.save_data(main_config_path)
+        make_backup(main_config_path, nginx_conf_backup_path)
         logger.info(f"Backup of the nginx configuration file created at {nginx_conf_backup_path}")
         
     nginx_conf_data.save_data(main_config_path)
@@ -266,7 +266,7 @@ def main():
                     logger.info(f"Invalid input: {e}")
                     selected_server_block = None
 
-        logger.info(f"Selected server configuration: {get_server_name(selected_server_block)}")
+        logger.info(f"Selected server configuration: {selected_server_block['name']}")
         
         # Backup the server configuration file
         
