@@ -5,7 +5,7 @@
             "request": "launch",
             "name": "Launch Program",
             "program": "${workspaceFolder}/src/main.py",
-            "args": ["-f", "images/php-fpm/php-fpm-nginx.conf"]
+            "args": ["--verbose", "-f", "config-examples/confd-includes.conf", "-m", "True", "--url", "https://google.com"]   
         }
     ]
 }
