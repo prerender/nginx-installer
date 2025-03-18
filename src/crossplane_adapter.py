@@ -3,17 +3,22 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+def log_config(config):
+    path = config['file']
+    
+    with open(path, 'r') as file:
+        content = file.read()
+        logger.debug(f"Configuration from {path}:\n{content}")
+        
+
 def load_nginx_config(file_path):
     payload = crossplane.parse(file_path,comments=True, single=False, strict=False)
     
-    try:
-        logger.debug(f"Loaded configurations {file_path} :")
-        for config in payload['config']:
-            config_str = crossplane.build(config)
-            logger.debug('\n' + config_str)
-    except Exception as e:
-        logger.debug(f"Failed to log configuration: {e}")
-        
+    for config in payload['config']:
+        try:
+            log_config(config)
+        except Exception as e:
+            logger.debug(f"Failed to log configuration: {e}")                
 
     if not payload:
         raise Exception("Failed to parse configuration.")

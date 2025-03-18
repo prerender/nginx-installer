@@ -168,7 +168,7 @@ def main(args):
         logger.debug(traceback.format_exc())
         sys.exit(1)
         
-    logger.debug(f"Parsed configs: {parsed_configs}")                        
+    logger.debug(f"Parsed configs: {parsed_configs}")                   
     
     # decide on site URL
         
@@ -221,8 +221,6 @@ def main(args):
     except Exception as e:
         # non-critical 
         logger.debug(f"Error saving Prerender token to file: {e}")    
-
-    is_modified = False
         
     # Get all server blocks with their server names
     selected_server_block = None
@@ -238,8 +236,6 @@ def main(args):
         return f"{server_name} {server_listening}"
     
     for i, (config) in enumerate(parsed_configs['config']):
-        logger.debug(f"Config {i}: {config}")
-        
         if not config['status'] == 'ok':
             logger.warning(f"Skipping config {i} due to parsing error")
             continue                
