@@ -5,6 +5,15 @@ logger = logging.getLogger(__name__)
 
 def load_nginx_config(file_path):
     payload = crossplane.parse(file_path,comments=True, single=False, strict=False)
+    
+    try:
+        logger.debug(f"Loaded configurations {file_path} :")
+        for config in payload['config']:
+            config_str = crossplane.build(config)
+            logger.debug('\n' + config_str)
+    except Exception as e:
+        logger.debug(f"Failed to log configuration: {e}")
+        
 
     if not payload:
         raise Exception("Failed to parse configuration.")
@@ -17,6 +26,9 @@ def load_nginx_config(file_path):
 
 def save_nginx_config(config, file_path):
     config_str = crossplane.build(config)
+    
+    logger.debug(f"Saving configuration to {file_path}")
+    logger.debug('\n' + config_str)
 
     if not config_str:
         raise Exception("Failed to build configuration with crossplane")

@@ -32,7 +32,7 @@ build:
 # Clean up build artifacts and temporary files
 clean:
 	rm -rf build dist **/*.spec ./*.spec
-	rm -f ./prerender.log ./.prerender-site ./.prerender_nginx_conf ./.prerender_server_conf ./.prerender_token
-	rm -rf **/*.prerender.backup ./*.prerender.backup
+	rm -f ./prerender.log ./.prerender_site_url ./.prerender_nginx_conf ./.prerender_server_conf ./.prerender_token
+	rm -rf **/**/*.prerender.backup ./*.prerender.backup
 
 .PHONY: all build clean

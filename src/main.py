@@ -25,7 +25,7 @@ MSG_VERIFICATION_FAILED_WITH_REASONS = "Verification failed. Possible reasons :\
 "Please check your configuration and try again. If the issue persists, contact support. Attach file prerender.log to your support request.\n" \
 "To retry verification or restore backup, please run the script once again."
 
-VERSION = '0.0.4'
+VERSION = '0.0.5'
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Portable nginx configuration CLI tool")
