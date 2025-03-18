@@ -4,7 +4,7 @@
 /build
 /dist
 /main.spec
-/prerender-nginx.spec
+/prerender-nginx-mac.spec
 **/*.conf.prerender.backup*
 /.prerender_site_url
 /.prerender_token
