@@ -13,7 +13,7 @@ IMAGE_NAME="test-nginx-image"
 
 # Modify config 
 echo "Modifying nginx configuration..."
-python3 src/main.py -f "$CUSTOM_NGINX_CONF" -m True -o "$(pwd)/nginx.conf" -t INVALID_TOKEN
+python3 src/main.py -f "$CUSTOM_NGINX_CONF" -m True -o "$(pwd)/nginx.conf" -t EXAMPLE_TOKEN
 
 # Build the docker image from the specified directory
 docker build -t "$IMAGE_NAME" "$DOCKER_DIR"
@@ -21,7 +21,7 @@ docker build -t "$IMAGE_NAME" "$DOCKER_DIR"
 # Run the container with the custom nginx configuration mounted over the default file
 echo "Running $IMAGE_NAME"
 docker run --rm -d \
-  -p 80:80 \
+  -p 8000:80 \
   -v "$(pwd)/nginx.conf":/etc/nginx/nginx.conf \
   --name test-nginx-config "$IMAGE_NAME"
 
@@ -30,11 +30,11 @@ sleep 3
 
 # Make a curl request to nginx on default port 80
 echo "Making test HTTP request to nginx..."
-curl -I http://localhost
+curl -I http://localhost:8000
 
 # Make a curl request with googlebot user-agent
 echo "Making test HTTP request to nginx with Googlebot user-agent..."
-curl -I -A "Googlebot/2.1 (+http://www.google.com/bot.html)" http://localhost
+curl -I -A "Googlebot/2.1 (+http://www.google.com/bot.html)" http://localhost:8000
 
 # Stop and remove the container
 echo "Stopping container..."
